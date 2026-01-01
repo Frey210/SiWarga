@@ -19,6 +19,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "change_me")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRES_MINUTES = int(os.getenv("JWT_EXPIRES_MINUTES", "60"))
 UPLOADS_DIR = os.getenv("UPLOADS_DIR", "/app/uploads")
+ANNOUNCEMENTS_DIR = os.path.join(UPLOADS_DIR, "announcements")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
@@ -46,6 +47,12 @@ class SubmissionActionEnum(str, enum.Enum):
     APPROVE = "APPROVE"
     REJECT = "REJECT"
     REQUEST_REVISION = "REQUEST_REVISION"
+
+
+class AnnouncementStatusEnum(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"
+    ARCHIVED = "ARCHIVED"
 
 
 class User(Base):
@@ -97,6 +104,27 @@ class ApprovalLog(Base):
     action = Column(Enum(SubmissionActionEnum), nullable=False)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    id = Column(Integer, primary_key=True)
+    slug = Column(String(160), nullable=False, unique=True, index=True)
+    title = Column(String(255), nullable=False)
+    excerpt = Column(Text, nullable=True)
+    category = Column(String(120), nullable=True)
+    content = Column(Text, nullable=True)
+    status = Column(Enum(AnnouncementStatusEnum), nullable=False, default=AnnouncementStatusEnum.DRAFT)
+    cover_original_name = Column(String(255), nullable=True)
+    cover_stored_name = Column(String(255), nullable=True, unique=True)
+    cover_mime_type = Column(String(255), nullable=True)
+    cover_size_bytes = Column(Integer, nullable=True)
+    cover_focus = Column(String(32), nullable=False, default="center")
+    author_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    published_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -217,6 +245,62 @@ class SubmissionActionResponse(BaseModel):
     log: ApprovalLogResponse
 
 
+class AnnouncementCreateRequest(BaseModel):
+    title: str
+    excerpt: str | None = None
+    category: str | None = None
+    content: str | None = None
+    slug: str | None = None
+    status: AnnouncementStatusEnum | None = None
+    cover_focus: str | None = None
+
+
+class AnnouncementUpdateRequest(BaseModel):
+    title: str | None = None
+    excerpt: str | None = None
+    category: str | None = None
+    content: str | None = None
+    slug: str | None = None
+    status: AnnouncementStatusEnum | None = None
+    cover_focus: str | None = None
+
+
+class AnnouncementResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    slug: str
+    title: str
+    excerpt: str | None
+    category: str | None
+    content: str | None
+    status: AnnouncementStatusEnum
+    cover_url: str | None = None
+    cover_name: str | None = None
+    cover_focus: str | None = None
+    author_name: str | None = None
+    published_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AnnouncementListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    slug: str
+    title: str
+    excerpt: str | None
+    category: str | None
+    status: AnnouncementStatusEnum
+    cover_url: str | None = None
+    cover_focus: str | None = None
+    author_name: str | None = None
+    published_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 app = FastAPI(title="RW Admin API")
 
 
@@ -271,6 +355,79 @@ def ensure_uploads_dir() -> None:
     os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
+def ensure_announcements_dir() -> None:
+    os.makedirs(ANNOUNCEMENTS_DIR, exist_ok=True)
+
+
+def slugify(value: str) -> str:
+    cleaned = []
+    last_dash = False
+    for char in value.lower().strip():
+        if char.isalnum():
+            cleaned.append(char)
+            last_dash = False
+        else:
+            if not last_dash:
+                cleaned.append("-")
+                last_dash = True
+    slug = "".join(cleaned).strip("-")
+    return slug or uuid4().hex
+
+
+def build_announcement_cover_url(announcement: Announcement) -> str | None:
+    if not announcement.cover_stored_name:
+        return None
+    return f"/api/announcements/{announcement.id}/cover"
+
+
+def serialize_announcement(announcement: Announcement, author_name: str | None = None) -> AnnouncementResponse:
+    return AnnouncementResponse(
+        id=announcement.id,
+        slug=announcement.slug,
+        title=announcement.title,
+        excerpt=announcement.excerpt,
+        category=announcement.category,
+        content=announcement.content,
+        status=announcement.status,
+        cover_url=build_announcement_cover_url(announcement),
+        cover_name=announcement.cover_original_name,
+        cover_focus=announcement.cover_focus,
+        author_name=author_name,
+        published_at=announcement.published_at,
+        created_at=announcement.created_at,
+        updated_at=announcement.updated_at,
+    )
+
+
+def serialize_announcement_list_item(
+    announcement: Announcement, author_name: str | None = None
+) -> AnnouncementListItem:
+    return AnnouncementListItem(
+        id=announcement.id,
+        slug=announcement.slug,
+        title=announcement.title,
+        excerpt=announcement.excerpt,
+        category=announcement.category,
+        status=announcement.status,
+        cover_url=build_announcement_cover_url(announcement),
+        cover_focus=announcement.cover_focus,
+        author_name=author_name,
+        published_at=announcement.published_at,
+        created_at=announcement.created_at,
+        updated_at=announcement.updated_at,
+    )
+
+
+def generate_unique_slug(db: Session, raw_slug: str) -> str:
+    base = slugify(raw_slug)
+    candidate = base
+    counter = 1
+    while db.scalar(select(Announcement).where(Announcement.slug == candidate)):
+        counter += 1
+        candidate = f"{base}-{counter}"
+    return candidate
+
+
 def ensure_profile_complete(user: User) -> None:
     if not all([user.full_name, user.phone_number, user.nik, user.kk_number]):
         raise HTTPException(status_code=400, detail="Profile incomplete")
@@ -289,6 +446,7 @@ def map_action_to_status(action: SubmissionActionEnum) -> SubmissionStatusEnum:
 @app.on_event("startup")
 def on_startup():
     ensure_uploads_dir()
+    ensure_announcements_dir()
 
 
 @app.get("/api/health")
@@ -466,6 +624,230 @@ def download_file(
         media_type=submission_file.mime_type,
         filename=submission_file.original_name,
     )
+
+
+@app.get("/api/announcements", response_model=list[AnnouncementListItem])
+def list_public_announcements(db: Session = Depends(get_db)):
+    announcements = db.scalars(
+        select(Announcement)
+        .where(Announcement.status == AnnouncementStatusEnum.PUBLISHED)
+        .order_by(Announcement.published_at.desc().nullslast(), Announcement.created_at.desc())
+    ).all()
+    return [serialize_announcement_list_item(item) for item in announcements]
+
+
+@app.get("/api/announcements/{slug}", response_model=AnnouncementResponse)
+def get_public_announcement(slug: str, db: Session = Depends(get_db)):
+    announcement = db.scalar(
+        select(Announcement)
+        .where(Announcement.slug == slug, Announcement.status == AnnouncementStatusEnum.PUBLISHED)
+    )
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    return serialize_announcement(announcement)
+
+
+@app.get("/api/announcements/{announcement_id}/cover")
+def get_announcement_cover(announcement_id: int, db: Session = Depends(get_db)):
+    announcement = db.scalar(select(Announcement).where(Announcement.id == announcement_id))
+    if not announcement or not announcement.cover_stored_name:
+        raise HTTPException(status_code=404, detail="Cover not found")
+
+    stored_path = os.path.join(ANNOUNCEMENTS_DIR, announcement.cover_stored_name)
+    if not os.path.exists(stored_path):
+        raise HTTPException(status_code=404, detail="Cover missing")
+
+    return FileResponse(
+        stored_path,
+        media_type=announcement.cover_mime_type or "application/octet-stream",
+        filename=announcement.cover_original_name or announcement.cover_stored_name,
+    )
+
+
+@app.get("/api/admin/announcements", response_model=list[AnnouncementListItem])
+def admin_list_announcements(
+    status: AnnouncementStatusEnum | None = None,
+    q: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    query = select(Announcement, User).outerjoin(User, User.id == Announcement.author_user_id)
+    if status:
+        query = query.where(Announcement.status == status)
+    if q:
+        like = f"%{q}%"
+        query = query.where(
+            or_(
+                Announcement.title.ilike(like),
+                Announcement.excerpt.ilike(like),
+                Announcement.category.ilike(like),
+                Announcement.slug.ilike(like),
+            )
+        )
+    rows = db.execute(query.order_by(Announcement.updated_at.desc())).all()
+    items = []
+    for announcement, author in rows:
+        items.append(serialize_announcement_list_item(announcement, author.full_name if author else None))
+    return items
+
+
+@app.get("/api/admin/announcements/{announcement_id}", response_model=AnnouncementResponse)
+def admin_get_announcement(
+    announcement_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    announcement = db.scalar(select(Announcement).where(Announcement.id == announcement_id))
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    author = db.scalar(select(User).where(User.id == announcement.author_user_id))
+    return serialize_announcement(announcement, author.full_name if author else None)
+
+
+@app.post("/api/admin/announcements", response_model=AnnouncementResponse)
+def admin_create_announcement(
+    payload: AnnouncementCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    slug_source = payload.slug or payload.title
+    slug = generate_unique_slug(db, slug_source)
+    now = datetime.utcnow()
+    status = payload.status or AnnouncementStatusEnum.DRAFT
+    published_at = now if status == AnnouncementStatusEnum.PUBLISHED else None
+    announcement = Announcement(
+        slug=slug,
+        title=payload.title,
+        excerpt=payload.excerpt,
+        category=payload.category,
+        content=payload.content,
+        status=status,
+        cover_focus=payload.cover_focus or "center",
+        author_user_id=current_user.id,
+        published_at=published_at,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(announcement)
+    db.commit()
+    db.refresh(announcement)
+    return serialize_announcement(announcement, current_user.full_name)
+
+
+@app.patch("/api/admin/announcements/{announcement_id}", response_model=AnnouncementResponse)
+def admin_update_announcement(
+    announcement_id: int,
+    payload: AnnouncementUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    announcement = db.scalar(select(Announcement).where(Announcement.id == announcement_id))
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    if payload.slug:
+        new_slug = slugify(payload.slug)
+        existing = db.scalar(select(Announcement).where(Announcement.slug == new_slug))
+        if existing and existing.id != announcement.id:
+            raise HTTPException(status_code=400, detail="Slug already exists")
+        announcement.slug = new_slug
+
+    if payload.title is not None:
+        announcement.title = payload.title
+    if payload.excerpt is not None:
+        announcement.excerpt = payload.excerpt
+    if payload.category is not None:
+        announcement.category = payload.category
+    if payload.content is not None:
+        announcement.content = payload.content
+    if payload.cover_focus is not None:
+        announcement.cover_focus = payload.cover_focus
+    if payload.status is not None:
+        announcement.status = payload.status
+        if payload.status == AnnouncementStatusEnum.PUBLISHED:
+            announcement.published_at = announcement.published_at or datetime.utcnow()
+        else:
+            announcement.published_at = None
+
+    announcement.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(announcement)
+    author = db.scalar(select(User).where(User.id == announcement.author_user_id))
+    return serialize_announcement(announcement, author.full_name if author else None)
+
+
+@app.post("/api/admin/announcements/{announcement_id}/cover", response_model=AnnouncementResponse)
+def admin_upload_announcement_cover(
+    announcement_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    announcement = db.scalar(select(Announcement).where(Announcement.id == announcement_id))
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    ensure_announcements_dir()
+    extension = os.path.splitext(file.filename or "")[1]
+    stored_name = f"{uuid4().hex}{extension}"
+    stored_path = os.path.join(ANNOUNCEMENTS_DIR, stored_name)
+
+    with open(stored_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    size_bytes = os.path.getsize(stored_path)
+    if size_bytes > 2 * 1024 * 1024:
+        os.remove(stored_path)
+        raise HTTPException(status_code=400, detail="Image must be <= 2 MB")
+
+    if announcement.cover_stored_name:
+        old_path = os.path.join(ANNOUNCEMENTS_DIR, announcement.cover_stored_name)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    announcement.cover_original_name = file.filename or stored_name
+    announcement.cover_stored_name = stored_name
+    announcement.cover_mime_type = file.content_type or "application/octet-stream"
+    announcement.cover_size_bytes = size_bytes
+    announcement.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(announcement)
+    author = db.scalar(select(User).where(User.id == announcement.author_user_id))
+    return serialize_announcement(announcement, author.full_name if author else None)
+
+
+@app.delete("/api/admin/announcements/{announcement_id}/cover", response_model=AnnouncementResponse)
+def admin_remove_announcement_cover(
+    announcement_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_admin(current_user)
+    announcement = db.scalar(select(Announcement).where(Announcement.id == announcement_id))
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    if announcement.cover_stored_name:
+        stored_path = os.path.join(ANNOUNCEMENTS_DIR, announcement.cover_stored_name)
+        if os.path.exists(stored_path):
+            os.remove(stored_path)
+
+    announcement.cover_original_name = None
+    announcement.cover_stored_name = None
+    announcement.cover_mime_type = None
+    announcement.cover_size_bytes = None
+    announcement.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(announcement)
+    author = db.scalar(select(User).where(User.id == announcement.author_user_id))
+    return serialize_announcement(announcement, author.full_name if author else None)
 
 
 @app.get("/api/admin/submissions", response_model=list[AdminSubmissionListItem])

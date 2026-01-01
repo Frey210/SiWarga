@@ -42,73 +42,22 @@ const ACTION_OPTIONS = [
   { value: "REQUEST_REVISION", label: "Minta Perbaikan" }
 ];
 
-const ANNOUNCEMENTS = [
-  {
-    id: 1,
-    slug: "jadwal-pengambilan-ktp-januari-2026",
-    title: "Jadwal Pengambilan KTP Elektronik Januari 2026",
-    excerpt:
-      "Cek jadwal terbaru pengambilan KTP Elektronik di kantor kelurahan untuk menghindari antrean panjang.",
-    category: "Layanan",
-    date: "12 Jan 2026",
-    coverUrl: "",
-    coverName: "",
-    content: `# Jadwal Pengambilan KTP Elektronik
-Berikut jadwal layanan pengambilan KTP Elektronik untuk minggu ini.
-
-## Lokasi & Jam Layanan
-- Kantor Kelurahan SiWarga: 08.00 - 14.00 WIB
-- Balai RW 06: 09.00 - 12.00 WIB
-
-Pastikan membawa tanda terima perekaman serta identitas asli.`
-  },
-  {
-    id: 2,
-    slug: "pemutakhiran-data-warga-triwulan-1",
-    title: "Pemutakhiran Data Warga Triwulan 1",
-    excerpt:
-      "Dimohon seluruh warga memperbarui data domisili dan kontak agar layanan surat menyurat tetap akurat.",
-    category: "Informasi",
-    date: "05 Jan 2026",
-    coverUrl: "",
-    coverName: "",
-    content: `# Pemutakhiran Data Warga
-Program pemutakhiran data dilakukan untuk memastikan informasi penduduk selalu akurat.
-
-## Yang Perlu Disiapkan
-- KTP dan KK terbaru
-- Nomor telepon aktif
-- Alamat email yang masih digunakan
-
-Silakan datang ke sekretariat RW atau ajukan pembaruan melalui aplikasi.`
-  },
-  {
-    id: 3,
-    slug: "posko-layanan-surat-keliling",
-    title: "Posko Layanan Surat Keliling Akhir Pekan",
-    excerpt:
-      "Layanan surat keliling hadir di Lapangan Utama RW untuk membantu warga yang tidak sempat datang hari kerja.",
-    category: "Kegiatan",
-    date: "28 Des 2025",
-    coverUrl: "",
-    coverName: "",
-    content: `# Posko Layanan Keliling
-Layanan surat keliling hadir setiap akhir pekan untuk mempercepat proses administrasi.
-
-## Jadwal
-- Sabtu: 09.00 - 13.00 WIB
-- Minggu: 09.00 - 12.00 WIB
-
-Warga dapat membawa dokumen pendukung agar proses lebih cepat.`
-  }
-];
-
-const CMS_INITIAL = ANNOUNCEMENTS.map((item, index) => ({
-  ...item,
-  status: index === 0 ? "PUBLISHED" : "DRAFT",
-  author: "Sekretariat RW",
-  updated_at: "15 Jan 2026"
-}));
+const emptyAnnouncementDraft = {
+  id: null,
+  slug: "",
+  title: "Judul Pengumuman Baru",
+  excerpt: "Tulis ringkasan singkat agar warga paham inti informasi.",
+  category: "Informasi",
+  content: "# Judul Pengumuman\nIsi detail pengumuman di sini.",
+  status: "DRAFT",
+  coverUrl: "",
+  coverName: "",
+  coverFocus: "center",
+  publishedAt: null,
+  createdAt: null,
+  updatedAt: null,
+  authorName: ""
+};
 
 const REQUIREMENTS_BY_TYPE = {
   "Surat Pengantar KTP": ["Fotokopi Kartu Keluarga", "Fotokopi KTP lama (jika ada)"],
@@ -214,20 +163,61 @@ function App() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewError, setPreviewError] = useState("");
 
-  const [cmsAnnouncements, setCmsAnnouncements] = useState(() => CMS_INITIAL);
-  const [cmsDraft, setCmsDraft] = useState(() => CMS_INITIAL[0]);
+  const [cmsAnnouncements, setCmsAnnouncements] = useState([]);
+  const [cmsDraft, setCmsDraft] = useState(() => ({ ...emptyAnnouncementDraft }));
   const [cmsNotice, setCmsNotice] = useState("");
+  const [cmsError, setCmsError] = useState("");
+  const [cmsFilter, setCmsFilter] = useState("ALL");
+  const [cmsLoading, setCmsLoading] = useState(false);
+
+  const [publicAnnouncements, setPublicAnnouncements] = useState([]);
+  const [publicAnnouncement, setPublicAnnouncement] = useState(null);
+  const [publicLoading, setPublicLoading] = useState(false);
+  const [publicError, setPublicError] = useState("");
 
   const isAdmin = useMemo(() => me?.role === "ADMIN_RW", [me]);
+  const mapAnnouncement = (item) => ({
+    id: item.id,
+    slug: item.slug,
+    title: item.title,
+    excerpt: item.excerpt,
+    category: item.category,
+    content: item.content || "",
+    status: item.status,
+    coverUrl: item.cover_url || "",
+    coverName: item.cover_name || "",
+    coverFocus: item.cover_focus || "center",
+    publishedAt: item.published_at || null,
+    createdAt: item.created_at || null,
+    updatedAt: item.updated_at || null,
+    authorName: item.author_name || ""
+  });
+
   const publishedAnnouncements = useMemo(
     () => cmsAnnouncements.filter((item) => item.status === "PUBLISHED"),
     [cmsAnnouncements]
   );
+  const cmsCounts = useMemo(() => {
+    const counts = { ALL: cmsAnnouncements.length, PUBLISHED: 0, DRAFT: 0, ARCHIVED: 0 };
+    cmsAnnouncements.forEach((item) => {
+      if (counts[item.status] !== undefined) {
+        counts[item.status] += 1;
+      }
+    });
+    return counts;
+  }, [cmsAnnouncements]);
+  const filteredCmsAnnouncements = useMemo(() => {
+    if (cmsFilter === "ALL") {
+      return cmsAnnouncements;
+    }
+    return cmsAnnouncements.filter((item) => item.status === cmsFilter);
+  }, [cmsAnnouncements, cmsFilter]);
   const currentAnnouncement = useMemo(() => {
-    const source =
-      isAdmin && route.name === "warga-announcement-detail" ? cmsAnnouncements : publishedAnnouncements;
-    return source.find((item) => item.slug === route.slug);
-  }, [cmsAnnouncements, isAdmin, publishedAnnouncements, route.name, route.slug]);
+    if (isAdmin) {
+      return cmsAnnouncements.find((item) => item.slug === route.slug) || null;
+    }
+    return publicAnnouncement;
+  }, [cmsAnnouncements, isAdmin, publicAnnouncement, route.slug]);
 
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
@@ -285,6 +275,18 @@ function App() {
       .then((data) => setMe(data))
       .catch((err) => setAuthError(err.message || "failed to load profile"));
   }, [token]);
+
+  const syncCmsAnnouncement = (payload) => {
+    const mapped = mapAnnouncement(payload);
+    setCmsAnnouncements((prev) => {
+      const exists = prev.some((item) => item.id === mapped.id);
+      if (!exists) {
+        return [mapped, ...prev];
+      }
+      return prev.map((item) => (item.id === mapped.id ? mapped : item));
+    });
+    setCmsDraft(mapped);
+  };
 
   const handleLogin = (event) => {
     event.preventDefault();
@@ -436,6 +438,79 @@ function App() {
     }
   }, [route, token, me, isAdmin]);
 
+  useEffect(() => {
+    if (!token || !isAdmin || route.name !== "admin-announcements") {
+      return;
+    }
+    setCmsLoading(true);
+    setCmsError("");
+    fetchWithAuth("/api/admin/announcements")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => setCmsAnnouncements(data.map(mapAnnouncement)))
+      .catch((err) => setCmsError(err.message || "Gagal memuat pengumuman."))
+      .finally(() => setCmsLoading(false));
+  }, [route.name, isAdmin, token]);
+
+  useEffect(() => {
+    if (route.name !== "warga-announcements") {
+      return;
+    }
+    setPublicLoading(true);
+    setPublicError("");
+    fetch("/api/announcements")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => setPublicAnnouncements(data.map(mapAnnouncement)))
+      .catch((err) => setPublicError(err.message || "Gagal memuat pengumuman."))
+      .finally(() => setPublicLoading(false));
+  }, [route.name]);
+
+  useEffect(() => {
+    if (route.name !== "warga-announcement-detail" || !route.slug || isAdmin) {
+      return;
+    }
+    setPublicLoading(true);
+    setPublicError("");
+    fetch(`/api/announcements/${route.slug}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => setPublicAnnouncement(mapAnnouncement(data)))
+      .catch((err) => setPublicError(err.message || "Pengumuman tidak ditemukan."))
+      .finally(() => setPublicLoading(false));
+  }, [route.name, route.slug, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || route.name !== "warga-announcement-detail") {
+      return;
+    }
+    const found = cmsAnnouncements.find((item) => item.slug === route.slug);
+    if (!found || found.content) {
+      return;
+    }
+    fetchWithAuth(`/api/admin/announcements/${found.id}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => syncCmsAnnouncement(data))
+      .catch((err) => setCmsError(err.message || "Gagal memuat detail pengumuman."));
+  }, [route.name, route.slug, isAdmin, cmsAnnouncements]);
+
   const handleCreateSubmission = (event) => {
     event.preventDefault();
     setNewError("");
@@ -540,7 +615,20 @@ function App() {
 
   const handleCmsSelect = (item) => {
     setCmsNotice("");
-    setCmsDraft(item);
+    setCmsError("");
+    if (!item?.id) {
+      setCmsDraft({ ...emptyAnnouncementDraft });
+      return;
+    }
+    fetchWithAuth(`/api/admin/announcements/${item.id}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => syncCmsAnnouncement(data))
+      .catch((err) => setCmsError(err.message || "Gagal memuat detail pengumuman."));
   };
 
   const handleCmsEdit = (item) => {
@@ -555,19 +643,52 @@ function App() {
     if (!file) {
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCmsDraft((prev) => ({
-        ...prev,
-        coverUrl: reader.result || "",
-        coverName: file.name
-      }));
-    };
-    reader.readAsDataURL(file);
+    if (!cmsDraft?.id) {
+      setCmsError("Simpan pengumuman terlebih dahulu sebelum unggah gambar.");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setCmsError("File harus berupa gambar.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setCmsError("Ukuran gambar maksimal 2 MB.");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    setCmsError("");
+    fetchWithAuth(`/api/admin/announcements/${cmsDraft.id}/cover`, {
+      method: "POST",
+      body: formData
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => syncCmsAnnouncement(data))
+      .catch((err) => setCmsError(err.message || "Gagal mengunggah gambar."));
   };
 
   const handleCmsImageRemove = () => {
-    setCmsDraft((prev) => ({ ...prev, coverUrl: "", coverName: "" }));
+    if (!cmsDraft?.id) {
+      setCmsError("Pengumuman belum tersimpan.");
+      return;
+    }
+    setCmsError("");
+    fetchWithAuth(`/api/admin/announcements/${cmsDraft.id}/cover`, {
+      method: "DELETE"
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => syncCmsAnnouncement(data))
+      .catch((err) => setCmsError(err.message || "Gagal menghapus gambar."));
   };
 
   const handleCmsSave = (event) => {
@@ -576,10 +697,62 @@ function App() {
       setCmsNotice("Judul pengumuman wajib diisi.");
       return;
     }
-    setCmsAnnouncements((prev) =>
-      prev.map((item) => (item.id === cmsDraft.id ? { ...cmsDraft, updated_at: "Hari ini" } : item))
-    );
-    setCmsNotice("Perubahan disimpan sebagai draft.");
+    if (!cmsDraft?.id) {
+      setCmsError("Simpan gagal. Buat pengumuman terlebih dahulu.");
+      return;
+    }
+    setCmsNotice("");
+    setCmsError("");
+    fetchWithAuth(`/api/admin/announcements/${cmsDraft.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: cmsDraft.title,
+        excerpt: cmsDraft.excerpt,
+        category: cmsDraft.category,
+        content: cmsDraft.content,
+        slug: cmsDraft.slug || undefined,
+        status: cmsDraft.status,
+        cover_focus: cmsDraft.coverFocus
+      })
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        syncCmsAnnouncement(data);
+        setCmsNotice("Perubahan disimpan sebagai draft.");
+      })
+      .catch((err) => setCmsError(err.message || "Gagal menyimpan pengumuman."));
+  };
+
+  const updateCmsItemStatus = (item, status, notice) => {
+    if (!item?.id) {
+      return;
+    }
+    setCmsNotice("");
+    setCmsError("");
+    fetchWithAuth(`/api/admin/announcements/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status
+      })
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        syncCmsAnnouncement(data);
+        setCmsNotice(notice);
+      })
+      .catch((err) => setCmsError(err.message || "Gagal memperbarui status."));
   };
 
   const handleCmsPublish = () => {
@@ -587,34 +760,43 @@ function App() {
       setCmsNotice("Judul pengumuman wajib diisi sebelum diterbitkan.");
       return;
     }
-    setCmsAnnouncements((prev) =>
-      prev.map((item) =>
-        item.id === cmsDraft.id ? { ...cmsDraft, status: "PUBLISHED", updated_at: "Hari ini" } : item
-      )
-    );
-    setCmsDraft((prev) => ({ ...prev, status: "PUBLISHED" }));
-    setCmsNotice("Pengumuman diterbitkan.");
+    updateCmsItemStatus(cmsDraft, "PUBLISHED", "Pengumuman diterbitkan.");
+  };
+
+  const handleCmsArchive = () => {
+    updateCmsItemStatus(cmsDraft, "ARCHIVED", "Pengumuman diarsipkan.");
+  };
+
+  const handleCmsSetDraft = () => {
+    updateCmsItemStatus(cmsDraft, "DRAFT", "Pengumuman dikembalikan ke draft.");
   };
 
   const handleCmsCreate = () => {
-    const nextId = Math.max(...cmsAnnouncements.map((item) => item.id)) + 1;
-    const fresh = {
-      id: nextId,
-      slug: `pengumuman-${nextId}`,
-      title: "Judul Pengumuman Baru",
-      excerpt: "Tulis ringkasan singkat agar warga paham inti informasi.",
-      category: "Informasi",
-      date: "Hari ini",
-      coverUrl: "",
-      coverName: "",
-      content: "# Judul Pengumuman\nIsi detail pengumuman di sini.",
-      status: "DRAFT",
-      author: me?.full_name || "Admin RW",
-      updated_at: "Hari ini"
-    };
-    setCmsAnnouncements((prev) => [fresh, ...prev]);
-    setCmsDraft(fresh);
-    setCmsNotice("Draft baru dibuat.");
+    setCmsNotice("");
+    setCmsError("");
+    fetchWithAuth("/api/admin/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: emptyAnnouncementDraft.title,
+        excerpt: emptyAnnouncementDraft.excerpt,
+        category: emptyAnnouncementDraft.category,
+        content: emptyAnnouncementDraft.content,
+        status: "DRAFT",
+        cover_focus: emptyAnnouncementDraft.coverFocus
+      })
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        syncCmsAnnouncement(data);
+        setCmsNotice("Draft baru dibuat.");
+      })
+      .catch((err) => setCmsError(err.message || "Gagal membuat pengumuman."));
   };
   const handlePreviewFile = async (file) => {
     try {
@@ -1357,14 +1539,24 @@ function App() {
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {publishedAnnouncements.length === 0 ? (
+        {publicLoading ? (
+          <div className="rounded-2xl border border-border bg-white p-6 text-sm text-slate-500">
+            Memuat pengumuman...
+          </div>
+        ) : null}
+        {publicError ? (
+          <div className="rounded-2xl border border-border bg-white p-6 text-sm text-red-600">
+            {publicError}
+          </div>
+        ) : null}
+        {!publicLoading && publicAnnouncements.length === 0 ? (
           <EmptyState
             icon={Megaphone}
             title="Belum ada pengumuman"
             description="Pengumuman resmi dari RW akan tampil di sini."
           />
         ) : null}
-        {publishedAnnouncements.map((item) => (
+        {publicAnnouncements.map((item) => (
           <button
             key={item.id}
             className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-white text-left shadow-soft transition hover:border-brand-400"
@@ -1373,7 +1565,15 @@ function App() {
           >
             <div
               className="relative flex h-32 items-center justify-center bg-gradient-to-br from-brand-600/15 via-accent-300/30 to-brand-500/10"
-              style={item.coverUrl ? { backgroundImage: `url(${item.coverUrl})`, backgroundSize: "cover" } : null}
+              style={
+                item.coverUrl
+                  ? {
+                      backgroundImage: `url(${item.coverUrl})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: item.coverFocus || "center"
+                    }
+                  : null
+              }
             >
               <div className="absolute inset-0 bg-brand-900/10" />
               <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-brand-600 shadow-soft">
@@ -1385,7 +1585,7 @@ function App() {
               <span className="rounded-full border border-accent-300/40 bg-accent-300/20 px-2 py-0.5 text-[10px] font-semibold text-accent-600">
                 {item.category}
               </span>
-              <span>{item.date}</span>
+              <span>{item.publishedAt || item.updatedAt || ""}</span>
               </div>
             </div>
             <div className="px-5 text-base font-semibold text-brand-900">{item.title}</div>
@@ -1406,6 +1606,16 @@ function App() {
 
   const renderWargaAnnouncementDetail = () => (
     <section className="rounded-2xl border border-border bg-white/90 p-6 shadow-soft">
+      {publicLoading && !currentAnnouncement ? (
+        <div className="rounded-2xl border border-border bg-white p-6 text-sm text-slate-500">
+          Memuat pengumuman...
+        </div>
+      ) : null}
+      {publicError && !currentAnnouncement ? (
+        <div className="rounded-2xl border border-border bg-white p-6 text-sm text-red-600">
+          {publicError}
+        </div>
+      ) : null}
       {currentAnnouncement ? (
         <div className="space-y-6">
           {currentAnnouncement.coverUrl ? (
@@ -1414,6 +1624,7 @@ function App() {
                 className="h-56 w-full object-cover"
                 src={currentAnnouncement.coverUrl}
                 alt={currentAnnouncement.coverName || currentAnnouncement.title}
+                style={{ objectPosition: currentAnnouncement.coverFocus || "center" }}
               />
             </div>
           ) : null}
@@ -1422,7 +1633,7 @@ function App() {
               <span className="rounded-full border border-accent-300/40 bg-accent-300/20 px-2 py-0.5 text-[10px] font-semibold text-accent-600">
                 {currentAnnouncement.category}
               </span>
-              <span>{currentAnnouncement.date}</span>
+              <span>{currentAnnouncement.publishedAt || currentAnnouncement.updatedAt || ""}</span>
             </div>
             <h2 className="text-2xl font-semibold text-brand-900">{currentAnnouncement.title}</h2>
             <p className="text-sm text-slate-500">{currentAnnouncement.excerpt}</p>
@@ -1456,7 +1667,38 @@ function App() {
             Buat Pengumuman
           </PrimaryButton>
         </div>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-border">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {[
+            { key: "ALL", label: `Semua (${cmsCounts.ALL})` },
+            { key: "PUBLISHED", label: `Terbit (${cmsCounts.PUBLISHED})` },
+            { key: "DRAFT", label: `Draft (${cmsCounts.DRAFT})` },
+            { key: "ARCHIVED", label: `Arsip (${cmsCounts.ARCHIVED})` }
+          ].map((item) => (
+            <button
+              key={item.key}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                cmsFilter === item.key
+                  ? "border-brand-600 bg-brand-600 text-white"
+                  : "border-border bg-white text-brand-700 hover:border-brand-400"
+              }`}
+              type="button"
+              onClick={() => setCmsFilter(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {cmsLoading ? (
+          <div className="mt-3 rounded-2xl border border-border bg-white p-4 text-sm text-slate-500">
+            Memuat data CMS...
+          </div>
+        ) : null}
+        {!cmsLoading && cmsError ? (
+          <div className="mt-3 rounded-2xl border border-border bg-white p-4 text-sm text-red-600">
+            {cmsError}
+          </div>
+        ) : null}
+        <div className="mt-3 overflow-hidden rounded-2xl border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
@@ -1468,7 +1710,14 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {cmsAnnouncements.map((item) => (
+              {filteredCmsAnnouncements.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-xs text-slate-500" colSpan={5}>
+                    Tidak ada pengumuman untuk filter ini.
+                  </td>
+                </tr>
+              ) : null}
+              {filteredCmsAnnouncements.map((item) => (
                 <tr key={item.id} className="border-t border-border">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -1476,18 +1725,18 @@ function App() {
                       <button
                         className="font-semibold text-brand-900 hover:text-brand-600"
                         type="button"
-                        onClick={() => handleCmsSelect(item)}
+                        onClick={() => handleCmsEdit(item)}
                       >
                         {item.title}
                       </button>
                     </div>
-                    <div className="text-xs text-slate-400">{item.author}</div>
+                    <div className="text-xs text-slate-400">{item.authorName || "Admin RW"}</div>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-600">{item.category}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={item.status} />
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{item.updated_at}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{item.updatedAt || "-"}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <IconButton
@@ -1496,7 +1745,29 @@ function App() {
                         onClick={() => setHash(`/warga/pengumuman/${encodeURIComponent(item.slug)}`)}
                       />
                       <IconButton icon={Pencil} label="Edit" onClick={() => handleCmsEdit(item)} />
-                      <IconButton icon={Send} label="Terbitkan" tone="primary" onClick={handleCmsPublish} />
+                      {item.status !== "PUBLISHED" ? (
+                        <IconButton
+                          icon={Send}
+                          label="Terbitkan"
+                          tone="primary"
+                          onClick={() => updateCmsItemStatus(item, "PUBLISHED", "Pengumuman diterbitkan.")}
+                        />
+                      ) : null}
+                      {item.status !== "ARCHIVED" ? (
+                        <IconButton
+                          icon={XCircle}
+                          label="Arsipkan"
+                          onClick={() => updateCmsItemStatus(item, "ARCHIVED", "Pengumuman diarsipkan.")}
+                        />
+                      ) : (
+                        <IconButton
+                          icon={FileText}
+                          label="Kembali Draft"
+                          onClick={() =>
+                            updateCmsItemStatus(item, "DRAFT", "Pengumuman dikembalikan ke draft.")
+                          }
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1554,6 +1825,7 @@ function App() {
                       className="h-36 w-full object-cover"
                       src={cmsDraft.coverUrl}
                       alt={cmsDraft.coverName || "cover"}
+                      style={{ objectPosition: cmsDraft.coverFocus || "center" }}
                     />
                   </div>
                 ) : (
@@ -1569,6 +1841,7 @@ function App() {
                     accept="image/*"
                     onChange={handleCmsImageUpload}
                   />
+                  <span className="text-[11px] text-slate-500">Maks 2 MB, JPG/PNG/WebP.</span>
                   {cmsDraft?.coverUrl ? (
                     <GhostButton type="button" onClick={handleCmsImageRemove}>
                       Hapus Gambar
@@ -1576,6 +1849,20 @@ function App() {
                   ) : null}
                 </div>
               </div>
+            </label>
+            <label className="text-sm font-medium text-slate-600">
+              Fokus Gambar
+              <select
+                className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm"
+                value={cmsDraft?.coverFocus || "center"}
+                onChange={(event) =>
+                  setCmsDraft((prev) => ({ ...prev, coverFocus: event.target.value }))
+                }
+              >
+                <option value="top">Atas</option>
+                <option value="center">Tengah</option>
+                <option value="bottom">Bawah</option>
+              </select>
             </label>
             <label className="text-sm font-medium text-slate-600">
               Konten (Markdown)
@@ -1592,8 +1879,18 @@ function App() {
               <GhostButton type="button" onClick={handleCmsPublish} icon={Send}>
                 Terbitkan
               </GhostButton>
+              {cmsDraft?.status === "ARCHIVED" ? (
+                <GhostButton type="button" onClick={handleCmsSetDraft}>
+                  Kembalikan ke Draft
+                </GhostButton>
+              ) : (
+                <GhostButton type="button" onClick={handleCmsArchive}>
+                  Arsipkan
+                </GhostButton>
+              )}
             </div>
             {cmsNotice ? <p className="text-sm text-green-700">{cmsNotice}</p> : null}
+            {cmsError ? <p className="text-sm text-red-600">{cmsError}</p> : null}
           </div>
         </form>
         <div className="rounded-2xl border border-border bg-white/90 p-6 shadow-soft">
@@ -1609,7 +1906,7 @@ function App() {
           <div className="mt-4 space-y-4 text-sm">
             <div className="space-y-1">
               <div className="text-xs text-slate-500">
-                {cmsDraft?.category || "Kategori"} - {cmsDraft?.date || "Hari ini"}
+                {cmsDraft?.category || "Kategori"} - {cmsDraft?.publishedAt || cmsDraft?.updatedAt || "Hari ini"}
               </div>
               <h4 className="text-lg font-semibold text-brand-900">{cmsDraft?.title || "Judul"}</h4>
               <p className="text-sm text-slate-500">{cmsDraft?.excerpt || "Ringkasan pengumuman."}</p>
@@ -1620,6 +1917,7 @@ function App() {
                   className="h-40 w-full object-cover"
                   src={cmsDraft.coverUrl}
                   alt={cmsDraft.coverName || "cover"}
+                  style={{ objectPosition: cmsDraft.coverFocus || "center" }}
                 />
               </div>
             ) : null}
