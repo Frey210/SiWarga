@@ -1,0 +1,8 @@
+node_modules/
+frontend/node_modules/
+.env
+frontend/node_modules/.vite/
+__pycache__/
+*.pyc
+backend/uploads/
+test-upload.txt
