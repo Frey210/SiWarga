@@ -426,7 +426,16 @@ function App() {
   };
 
   const renderLogin = () => (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-orange-100">
+      <div className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-500">SiWarga</p>
+        <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+          Satu Sistem, Semua Urusan Warga.
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Pengajuan surat, data warga, dan dokumen persyaratan dikelola lebih cepat dan transparan.
+        </p>
+      </div>
       <form
         className="flex flex-col gap-4"
         onSubmit={authMode === "login" ? handleLogin : handleRegister}
@@ -498,9 +507,9 @@ function App() {
           {authMode === "login" ? "Login" : "Register"}
         </button>
       </form>
-      <div className="mt-3 text-sm">
+      <div className="mt-4 text-sm">
         <button
-          className="text-slate-600 underline"
+          className="text-slate-600 underline decoration-orange-300"
           type="button"
           onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
         >
@@ -571,10 +580,13 @@ function App() {
 
   const renderNewSubmission = () => (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold">New Submission</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Pilih jenis surat, lalu siapkan dokumen wajib sebelum upload.
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-orange-500">Step 1</p>
+        <h2 className="text-lg font-semibold">Buat Pengajuan Baru</h2>
+        <p className="text-sm text-slate-500">
+          Pilih jenis surat. Sistem akan menampilkan dokumen wajib agar tidak salah upload.
+        </p>
+      </div>
       <form className="mt-4 flex flex-col gap-4" onSubmit={handleCreateSubmission}>
         <label className="text-sm font-medium text-slate-600">
           Jenis Surat
@@ -590,8 +602,8 @@ function App() {
             ))}
           </select>
         </label>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <p className="font-semibold text-slate-800">Dokumen Wajib</p>
+        <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4 text-sm text-slate-700">
+          <p className="font-semibold text-slate-800">Dokumen Wajib (Siapkan sebelum upload)</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
             {(REQUIREMENTS_BY_TYPE[newType] || []).map((item) => (
               <li key={item}>{item}</li>
@@ -648,7 +660,7 @@ function App() {
               {JSON.stringify(submissionDetail.payload, null, 2)}
             </pre>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-slate-500">Dokumen Wajib</div>
             <div className="mt-2 space-y-2 text-xs text-slate-600">
               {(REQUIREMENTS_BY_TYPE[submissionDetail.type] || []).map((item) => {
@@ -659,7 +671,13 @@ function App() {
                   <div key={item} className="flex items-center justify-between gap-3">
                     <span>{item}</span>
                     <div className="flex items-center gap-2">
-                      <span className={uploaded ? "text-green-700" : "text-slate-400"}>
+                      <span
+                        className={
+                          uploaded
+                            ? "rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700"
+                            : "rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500"
+                        }
+                      >
                         {uploaded ? "Uploaded" : "Missing"}
                       </span>
                       <button
@@ -891,10 +909,11 @@ function App() {
       <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-10">
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">RW Admin</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-orange-500">SiWarga</p>
             <h1 className="mt-2 text-3xl font-bold">
-              {token ? "Dashboard" : "Login"}
+              {token ? "Dashboard Warga" : "Login"}
             </h1>
+            <p className="mt-1 text-sm text-slate-500">Satu Sistem, Semua Urusan Warga.</p>
           </div>
           {token ? (
             <div className="flex flex-wrap items-center gap-3 text-sm">

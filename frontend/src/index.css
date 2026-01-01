@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --brand-900: #0f172a;
+  --brand-700: #1e293b;
+  --brand-500: #334155;
+  --accent-500: #f97316;
+  --accent-300: #fdba74;
+  --surface: #f8fafc;
+  --surface-strong: #ffffff;
+}
+
+body {
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #fff7ed 0%, #f8fafc 55%, #eef2f7 100%);
+}
