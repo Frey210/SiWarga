@@ -1594,7 +1594,7 @@ function App() {
               <div className="flex items-center gap-2 text-xs font-semibold text-brand-600">
                 Baca detail
                 <span className="h-5 w-5 rounded-full border border-brand-500/40 bg-brand-500/10 text-center text-[10px]">
-                  ->
+                  {"->"}
                 </span>
               </div>
             </div>

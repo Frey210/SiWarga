@@ -6,6 +6,7 @@ Create Date: 2026-01-01 10:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "0002_announcements"
 down_revision = "0001_initial"
@@ -13,17 +14,22 @@ branch_labels = None
 depends_on = None
 
 
-announcement_status_enum = sa.Enum(
+announcement_status_enum = postgresql.ENUM(
     "DRAFT",
     "PUBLISHED",
     "ARCHIVED",
     name="announcementstatusenum",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    announcement_status_enum.create(bind, checkfirst=True)
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE announcementstatusenum AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; "
+        "END $$;"
+    )
 
     op.create_table(
         "announcements",
@@ -52,5 +58,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_announcements_slug", table_name="announcements")
     op.drop_table("announcements")
-    bind = op.get_bind()
-    announcement_status_enum.drop(bind, checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS announcementstatusenum;")
