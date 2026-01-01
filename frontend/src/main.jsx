@@ -1,5 +1,5 @@
 ﻿
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AlertCircle,
@@ -51,6 +51,8 @@ const ANNOUNCEMENTS = [
       "Cek jadwal terbaru pengambilan KTP Elektronik di kantor kelurahan untuk menghindari antrean panjang.",
     category: "Layanan",
     date: "12 Jan 2026",
+    coverUrl: "",
+    coverName: "",
     content: `# Jadwal Pengambilan KTP Elektronik
 Berikut jadwal layanan pengambilan KTP Elektronik untuk minggu ini.
 
@@ -68,6 +70,8 @@ Pastikan membawa tanda terima perekaman serta identitas asli.`
       "Dimohon seluruh warga memperbarui data domisili dan kontak agar layanan surat menyurat tetap akurat.",
     category: "Informasi",
     date: "05 Jan 2026",
+    coverUrl: "",
+    coverName: "",
     content: `# Pemutakhiran Data Warga
 Program pemutakhiran data dilakukan untuk memastikan informasi penduduk selalu akurat.
 
@@ -86,6 +90,8 @@ Silakan datang ke sekretariat RW atau ajukan pembaruan melalui aplikasi.`
       "Layanan surat keliling hadir di Lapangan Utama RW untuk membantu warga yang tidak sempat datang hari kerja.",
     category: "Kegiatan",
     date: "28 Des 2025",
+    coverUrl: "",
+    coverName: "",
     content: `# Posko Layanan Keliling
 Layanan surat keliling hadir setiap akhir pekan untuk mempercepat proses administrasi.
 
@@ -165,6 +171,7 @@ function setHash(path) {
 }
 
 function App() {
+  const cmsEditorRef = useRef(null);
   const [health, setHealth] = useState("loading");
   const [healthError, setHealthError] = useState("");
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
@@ -212,10 +219,15 @@ function App() {
   const [cmsNotice, setCmsNotice] = useState("");
 
   const isAdmin = useMemo(() => me?.role === "ADMIN_RW", [me]);
-  const currentAnnouncement = useMemo(
-    () => ANNOUNCEMENTS.find((item) => item.slug === route.slug),
-    [route.slug]
+  const publishedAnnouncements = useMemo(
+    () => cmsAnnouncements.filter((item) => item.status === "PUBLISHED"),
+    [cmsAnnouncements]
   );
+  const currentAnnouncement = useMemo(() => {
+    const source =
+      isAdmin && route.name === "warga-announcement-detail" ? cmsAnnouncements : publishedAnnouncements;
+    return source.find((item) => item.slug === route.slug);
+  }, [cmsAnnouncements, isAdmin, publishedAnnouncements, route.name, route.slug]);
 
   useEffect(() => {
     const onHash = () => setRoute(parseHash());
@@ -531,6 +543,33 @@ function App() {
     setCmsDraft(item);
   };
 
+  const handleCmsEdit = (item) => {
+    handleCmsSelect(item);
+    setTimeout(() => {
+      cmsEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  };
+
+  const handleCmsImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCmsDraft((prev) => ({
+        ...prev,
+        coverUrl: reader.result || "",
+        coverName: file.name
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCmsImageRemove = () => {
+    setCmsDraft((prev) => ({ ...prev, coverUrl: "", coverName: "" }));
+  };
+
   const handleCmsSave = (event) => {
     event.preventDefault();
     if (!cmsDraft?.title?.trim()) {
@@ -566,6 +605,8 @@ function App() {
       excerpt: "Tulis ringkasan singkat agar warga paham inti informasi.",
       category: "Informasi",
       date: "Hari ini",
+      coverUrl: "",
+      coverName: "",
       content: "# Judul Pengumuman\nIsi detail pengumuman di sini.",
       status: "DRAFT",
       author: me?.full_name || "Admin RW",
@@ -1316,29 +1357,46 @@ function App() {
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {ANNOUNCEMENTS.map((item) => (
+        {publishedAnnouncements.length === 0 ? (
+          <EmptyState
+            icon={Megaphone}
+            title="Belum ada pengumuman"
+            description="Pengumuman resmi dari RW akan tampil di sini."
+          />
+        ) : null}
+        {publishedAnnouncements.map((item) => (
           <button
             key={item.id}
-            className="group relative flex h-full flex-col gap-3 rounded-2xl border border-border bg-white p-5 text-left shadow-soft transition hover:border-brand-400"
+            className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-border bg-white text-left shadow-soft transition hover:border-brand-400"
             type="button"
             onClick={() => setHash(`/warga/pengumuman/${encodeURIComponent(item.slug)}`)}
           >
-            <div className="absolute -right-3 -top-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600/10 text-brand-600 opacity-30">
-              <Megaphone className="h-8 w-8" />
+            <div
+              className="relative flex h-32 items-center justify-center bg-gradient-to-br from-brand-600/15 via-accent-300/30 to-brand-500/10"
+              style={item.coverUrl ? { backgroundImage: `url(${item.coverUrl})`, backgroundSize: "cover" } : null}
+            >
+              <div className="absolute inset-0 bg-brand-900/10" />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-brand-600 shadow-soft">
+                <Megaphone className="h-6 w-6" />
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="px-5 pt-3 text-xs text-slate-500">
+              <div className="flex items-center gap-2">
               <span className="rounded-full border border-accent-300/40 bg-accent-300/20 px-2 py-0.5 text-[10px] font-semibold text-accent-600">
                 {item.category}
               </span>
               <span>{item.date}</span>
+              </div>
             </div>
-            <div className="text-base font-semibold text-brand-900">{item.title}</div>
-            <p className="text-sm text-slate-500">{item.excerpt}</p>
-            <div className="mt-auto flex items-center gap-2 text-xs font-semibold text-brand-600">
-              Baca detail
-              <span className="h-5 w-5 rounded-full border border-brand-500/40 bg-brand-500/10 text-center text-[10px]">
-                →
-              </span>
+            <div className="px-5 text-base font-semibold text-brand-900">{item.title}</div>
+            <p className="px-5 text-sm text-slate-500">{item.excerpt}</p>
+            <div className="mt-auto px-5 pb-5">
+              <div className="flex items-center gap-2 text-xs font-semibold text-brand-600">
+                Baca detail
+                <span className="h-5 w-5 rounded-full border border-brand-500/40 bg-brand-500/10 text-center text-[10px]">
+                  ->
+                </span>
+              </div>
             </div>
           </button>
         ))}
@@ -1350,6 +1408,15 @@ function App() {
     <section className="rounded-2xl border border-border bg-white/90 p-6 shadow-soft">
       {currentAnnouncement ? (
         <div className="space-y-6">
+          {currentAnnouncement.coverUrl ? (
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <img
+                className="h-56 w-full object-cover"
+                src={currentAnnouncement.coverUrl}
+                alt={currentAnnouncement.coverName || currentAnnouncement.title}
+              />
+            </div>
+          ) : null}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span className="rounded-full border border-accent-300/40 bg-accent-300/20 px-2 py-0.5 text-[10px] font-semibold text-accent-600">
@@ -1428,7 +1495,7 @@ function App() {
                         label="Preview"
                         onClick={() => setHash(`/warga/pengumuman/${encodeURIComponent(item.slug)}`)}
                       />
-                      <IconButton icon={Pencil} label="Edit" onClick={() => handleCmsSelect(item)} />
+                      <IconButton icon={Pencil} label="Edit" onClick={() => handleCmsEdit(item)} />
                       <IconButton icon={Send} label="Terbitkan" tone="primary" onClick={handleCmsPublish} />
                     </div>
                   </td>
@@ -1439,7 +1506,11 @@ function App() {
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <form className="rounded-2xl border border-border bg-white/90 p-6 shadow-soft" onSubmit={handleCmsSave}>
+        <form
+          ref={cmsEditorRef}
+          className="rounded-2xl border border-border bg-white/90 p-6 shadow-soft"
+          onSubmit={handleCmsSave}
+        >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-600">
               <Megaphone className="h-5 w-5" />
@@ -1475,6 +1546,38 @@ function App() {
               />
             </label>
             <label className="text-sm font-medium text-slate-600">
+              Foto / Cover
+              <div className="mt-2 flex flex-col gap-3 rounded-xl border border-dashed border-border bg-slate-50/60 p-3">
+                {cmsDraft?.coverUrl ? (
+                  <div className="overflow-hidden rounded-xl border border-border bg-white">
+                    <img
+                      className="h-36 w-full object-cover"
+                      src={cmsDraft.coverUrl}
+                      alt={cmsDraft.coverName || "cover"}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <FileText className="h-4 w-4 text-brand-600" />
+                    Belum ada gambar. Unggah untuk tampil di kartu pengumuman.
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="text-xs"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCmsImageUpload}
+                  />
+                  {cmsDraft?.coverUrl ? (
+                    <GhostButton type="button" onClick={handleCmsImageRemove}>
+                      Hapus Gambar
+                    </GhostButton>
+                  ) : null}
+                </div>
+              </div>
+            </label>
+            <label className="text-sm font-medium text-slate-600">
               Konten (Markdown)
               <textarea
                 className="mt-2 h-44 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm"
@@ -1506,11 +1609,20 @@ function App() {
           <div className="mt-4 space-y-4 text-sm">
             <div className="space-y-1">
               <div className="text-xs text-slate-500">
-                {cmsDraft?.category || "Kategori"} · {cmsDraft?.date || "Hari ini"}
+                {cmsDraft?.category || "Kategori"} - {cmsDraft?.date || "Hari ini"}
               </div>
               <h4 className="text-lg font-semibold text-brand-900">{cmsDraft?.title || "Judul"}</h4>
               <p className="text-sm text-slate-500">{cmsDraft?.excerpt || "Ringkasan pengumuman."}</p>
             </div>
+            {cmsDraft?.coverUrl ? (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <img
+                  className="h-40 w-full object-cover"
+                  src={cmsDraft.coverUrl}
+                  alt={cmsDraft.coverName || "cover"}
+                />
+              </div>
+            ) : null}
             <div className="prose-siwarga space-y-3 text-sm">
               {renderMarkdown(cmsDraft?.content || "")}
             </div>
@@ -1582,7 +1694,7 @@ function App() {
           {token ? (
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-brand-700">
-                {me?.email || "loading"} · {me?.role || "-"}
+                {me?.email || "loading"} - {me?.role || "-"}
               </span>
               <GhostButton onClick={handleLogout} icon={LogOut}>
                 Keluar
