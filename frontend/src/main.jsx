@@ -21,6 +21,7 @@ import {
   Users,
   XCircle
 } from "lucide-react";
+import { MENU_ICONS, SIWARGA_LOGOS, STATUS_ICONS } from "./assets/siwarga";
 import "./index.css";
 
 const TOKEN_KEY = "rw_admin_token";
@@ -822,24 +823,47 @@ function App() {
     setPreviewFile(null);
   };
 
+  const IconImage = ({ src, alt, className }) => (
+    <img className={className} src={src} alt={alt} loading="lazy" />
+  );
+
+  const getStatusKey = (status) => {
+    const normalized = (status || "").toUpperCase();
+    const map = {
+      SUBMITTED: "SUBMITTED",
+      IN_REVIEW: "PROCESSING",
+      PROCESSING: "PROCESSING",
+      NEED_REVISION: "REVISION",
+      REVISION_REQUIRED: "REVISION",
+      REVISION: "REVISION",
+      APPROVED: "APPROVED",
+      REJECTED: "REJECTED"
+    };
+    return map[normalized] || null;
+  };
+
   const getStatusMeta = (status) => {
     const normalized = (status || "").toUpperCase();
     const map = {
-      SUBMITTED: { label: "Diajukan", icon: Clock, tone: "info" },
-      IN_REVIEW: { label: "Diproses", icon: Clock, tone: "info" },
-      REVISION_REQUIRED: { label: "Perlu Perbaikan", icon: AlertCircle, tone: "warning" },
-      APPROVED: { label: "Disetujui", icon: CheckCircle2, tone: "success" },
-      REJECTED: { label: "Ditolak", icon: XCircle, tone: "danger" },
-      DRAFT: { label: "Draft", icon: FileText, tone: "info" },
-      PUBLISHED: { label: "Terbit", icon: CheckCircle2, tone: "success" },
-      ARCHIVED: { label: "Arsip", icon: XCircle, tone: "danger" }
+      SUBMITTED: { label: "Diajukan", tone: "info" },
+      IN_REVIEW: { label: "Diproses", tone: "info" },
+      PROCESSING: { label: "Diproses", tone: "info" },
+      NEED_REVISION: { label: "Perlu Perbaikan", tone: "warning" },
+      REVISION_REQUIRED: { label: "Perlu Perbaikan", tone: "warning" },
+      REVISION: { label: "Perlu Perbaikan", tone: "warning" },
+      APPROVED: { label: "Disetujui", tone: "success" },
+      REJECTED: { label: "Ditolak", tone: "danger" },
+      DRAFT: { label: "Draft", tone: "info" },
+      PUBLISHED: { label: "Terbit", tone: "success" },
+      ARCHIVED: { label: "Arsip", tone: "danger" }
     };
-    return map[normalized] || { label: status || "-", icon: Clock, tone: "info" };
+    return map[normalized] || { label: status || "-", tone: "info" };
   };
 
   const StatusBadge = ({ status }) => {
     const meta = getStatusMeta(status);
-    const Icon = meta.icon;
+    const statusKey = getStatusKey(status);
+    const iconSrc = statusKey ? STATUS_ICONS[statusKey] : SIWARGA_LOGOS.mark;
     const toneClass = {
       success: "border-status-success/30 bg-status-success/10 text-status-success",
       warning: "border-status-warning/30 bg-status-warning/10 text-status-warning",
@@ -850,16 +874,16 @@ function App() {
       <span
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${toneClass}`}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <IconImage className="h-4 w-4" src={iconSrc} alt={meta.label} />
         {meta.label}
       </span>
     );
   };
 
-  const EmptyState = ({ icon: Icon, title, description, action }) => (
+  const EmptyState = ({ iconSrc, iconAlt, title, description, action }) => (
     <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-white/70 p-8 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
-        <Icon className="h-6 w-6" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10">
+        <IconImage className="h-7 w-7" src={iconSrc} alt={iconAlt} />
       </div>
       <div>
         <p className="text-sm font-semibold text-brand-900">{title}</p>
@@ -869,11 +893,11 @@ function App() {
     </div>
   );
 
-  const PageHeader = ({ icon: Icon, title, description, action }) => (
+  const PageHeader = ({ iconSrc, iconAlt, title, description, action }) => (
     <div className="flex flex-col gap-4 rounded-3xl border border-border bg-white/80 p-6 shadow-soft md:flex-row md:items-center md:justify-between">
       <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-glow">
-          <Icon className="h-6 w-6" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600/10 shadow-soft">
+          <IconImage className="h-6 w-6" src={iconSrc} alt={iconAlt} />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-brand-900 md:text-3xl">{title}</h1>
@@ -991,6 +1015,11 @@ function App() {
   const renderLogin = () => (
     <section className="glass-panel rounded-3xl border border-border p-8 shadow-soft">
       <div className="mb-6">
+        <img
+          className="h-10 w-auto"
+          src={SIWARGA_LOGOS.full}
+          alt="SiWarga"
+        />
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-brand-600">
           <span className="h-2 w-2 rounded-full bg-brand-500" />
           SiWarga
@@ -1154,7 +1183,8 @@ function App() {
           </div>
         ) : submissions.length === 0 ? (
           <EmptyState
-            icon={FileCheck}
+            iconSrc={MENU_ICONS.surat}
+            iconAlt="Permohonan surat"
             title="Belum ada pengajuan"
             description="Mulai ajukan surat untuk melihat statusnya di sini."
             action={<PrimaryButton onClick={() => setHash("/submissions/new")}>Ajukan Surat</PrimaryButton>}
@@ -1383,7 +1413,8 @@ function App() {
           </div>
         ) : adminSubmissions.length === 0 ? (
           <EmptyState
-            icon={FileText}
+            iconSrc={MENU_ICONS.surat}
+            iconAlt="Permohonan surat"
             title="Belum ada pengajuan masuk"
             description="Data pengajuan akan tampil otomatis saat warga mengajukan surat."
           />
@@ -1551,7 +1582,8 @@ function App() {
         ) : null}
         {!publicLoading && publicAnnouncements.length === 0 ? (
           <EmptyState
-            icon={Megaphone}
+            iconSrc={MENU_ICONS.pengumuman}
+            iconAlt="Pengumuman"
             title="Belum ada pengumuman"
             description="Pengumuman resmi dari RW akan tampil di sini."
           />
@@ -1576,8 +1608,8 @@ function App() {
               }
             >
               <div className="absolute inset-0 bg-brand-900/10" />
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-brand-600 shadow-soft">
-                <Megaphone className="h-6 w-6" />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 shadow-soft">
+                <IconImage className="h-6 w-6" src={MENU_ICONS.pengumuman} alt="Pengumuman" />
               </div>
             </div>
             <div className="px-5 pt-3 text-xs text-slate-500">
@@ -1645,7 +1677,8 @@ function App() {
         </div>
       ) : (
         <EmptyState
-          icon={Megaphone}
+          iconSrc={MENU_ICONS.pengumuman}
+          iconAlt="Pengumuman"
           title="Pengumuman tidak ditemukan"
           description="Cek daftar pengumuman terbaru untuk informasi resmi dari RW."
           action={<PrimaryButton onClick={() => setHash("/warga/pengumuman")}>Lihat Pengumuman</PrimaryButton>}
@@ -1981,7 +2014,7 @@ function App() {
         <header className="flex flex-col gap-4 rounded-3xl border border-border bg-white/80 p-6 shadow-soft md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-brand-600">
-              <span className="h-2 w-2 rounded-full bg-brand-500" />
+              <img className="h-5 w-5" src={SIWARGA_LOGOS.mark} alt="SiWarga" />
               SiWarga
             </div>
             <h1 className="mt-3 text-3xl font-bold text-brand-900">
@@ -2005,6 +2038,10 @@ function App() {
           <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
             {isAdmin ? (
               <aside className="glass-panel h-fit rounded-3xl border border-border p-4 shadow-soft">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-brand-600">
+                  <img className="h-6 w-6" src={SIWARGA_LOGOS.mark} alt="SiWarga" />
+                  SiWarga
+                </div>
                 <div className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
                   Navigasi Admin
                 </div>
@@ -2018,7 +2055,7 @@ function App() {
                     type="button"
                     onClick={() => setHash("/admin")}
                   >
-                    <LayoutGrid className="h-4 w-4" />
+                    <IconImage className="h-5 w-5" src={MENU_ICONS.dashboard} alt="Dashboard" />
                     Dashboard
                   </button>
                   <button
@@ -2030,13 +2067,17 @@ function App() {
                     type="button"
                     onClick={() => setHash("/admin/pengumuman")}
                   >
-                    <Megaphone className="h-4 w-4" />
+                    <IconImage className="h-5 w-5" src={MENU_ICONS.pengumuman} alt="Pengumuman" />
                     Pengumuman
                   </button>
                 </div>
               </aside>
             ) : (
               <aside className="glass-panel h-fit rounded-3xl border border-border p-4 shadow-soft">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-brand-600">
+                  <img className="h-6 w-6" src={SIWARGA_LOGOS.mark} alt="SiWarga" />
+                  SiWarga
+                </div>
                 <div className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
                   Navigasi Warga
                 </div>
@@ -2050,7 +2091,7 @@ function App() {
                     type="button"
                     onClick={() => setHash("/")}
                   >
-                    <Home className="h-4 w-4" />
+                    <IconImage className="h-5 w-5" src={MENU_ICONS.dashboard} alt="Beranda" />
                     Beranda
                   </button>
                   <button
@@ -2062,7 +2103,7 @@ function App() {
                     type="button"
                     onClick={() => setHash("/submissions/new")}
                   >
-                    <FileCheck className="h-4 w-4" />
+                    <IconImage className="h-5 w-5" src={MENU_ICONS.surat} alt="Ajukan Surat" />
                     Ajukan Surat
                   </button>
                   <button
@@ -2074,7 +2115,7 @@ function App() {
                     type="button"
                     onClick={() => setHash("/warga/pengumuman")}
                   >
-                    <Megaphone className="h-4 w-4" />
+                    <IconImage className="h-5 w-5" src={MENU_ICONS.pengumuman} alt="Pengumuman" />
                     Pengumuman
                   </button>
                 </div>
@@ -2083,13 +2124,21 @@ function App() {
             <div className="space-y-6">
               {isAdmin ? (
                 <PageHeader
-                  icon={ShieldCheck}
+                  iconSrc={route.name === "admin-announcements" ? MENU_ICONS.pengumuman : MENU_ICONS.dashboard}
+                  iconAlt="Admin"
                   title={route.name === "admin-announcements" ? "CMS Pengumuman" : "Dashboard Admin"}
                   description="Pantau layanan warga dan kelola konten resmi."
                 />
               ) : (
                 <PageHeader
-                  icon={route.name === "warga-announcements" ? Megaphone : FileText}
+                  iconSrc={
+                    route.name === "warga-announcements"
+                      ? MENU_ICONS.pengumuman
+                      : route.name === "submission-new"
+                      ? MENU_ICONS.surat
+                      : MENU_ICONS.dashboard
+                  }
+                  iconAlt="Ikon Halaman"
                   title={
                     route.name === "warga-announcements"
                       ? "Pengumuman Warga"
@@ -2150,7 +2199,7 @@ function App() {
         {!token ? null : (
           <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/90 px-6 py-3 shadow-soft md:hidden">
             {!isAdmin ? (
-              <div className="flex items-center justify-around text-xs text-slate-500">
+              <div className="flex items-center justify-between text-[10px] text-slate-500">
                 <button
                   className={`flex flex-col items-center gap-1 ${
                     route.name === "dashboard" ? "text-brand-600" : ""
@@ -2158,7 +2207,7 @@ function App() {
                   type="button"
                   onClick={() => setHash("/")}
                 >
-                  <Home className="h-5 w-5" />
+                  <IconImage className="h-6 w-6" src={MENU_ICONS.dashboard} alt="Beranda" />
                   Beranda
                 </button>
                 <button
@@ -2168,8 +2217,16 @@ function App() {
                   type="button"
                   onClick={() => setHash("/submissions/new")}
                 >
-                  <FileCheck className="h-5 w-5" />
+                  <IconImage className="h-6 w-6" src={MENU_ICONS.surat} alt="Ajukan Surat" />
                   Ajukan
+                </button>
+                <button
+                  className="flex flex-col items-center gap-1"
+                  type="button"
+                  onClick={() => setHash("/")}
+                >
+                  <IconImage className="h-6 w-6" src={MENU_ICONS.template} alt="Riwayat" />
+                  Riwayat
                 </button>
                 <button
                   className={`flex flex-col items-center gap-1 ${
@@ -2178,8 +2235,16 @@ function App() {
                   type="button"
                   onClick={() => setHash("/warga/pengumuman")}
                 >
-                  <Megaphone className="h-5 w-5" />
+                  <IconImage className="h-6 w-6" src={MENU_ICONS.pengumuman} alt="Pengumuman" />
                   Info
+                </button>
+                <button
+                  className="flex flex-col items-center gap-1"
+                  type="button"
+                  onClick={() => setHash("/")}
+                >
+                  <IconImage className="h-6 w-6" src={MENU_ICONS.pengguna} alt="Profil" />
+                  Profil
                 </button>
               </div>
             ) : null}
